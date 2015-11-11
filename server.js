@@ -1,0 +1,230 @@
+/*
+ * AOS Socket Helper application
+ *
+ *
+ */
+
+var express 	= require('express'),
+	app			= express(),
+    server  	= require('http').createServer(app),
+    io      	= require('socket.io').listen(server),
+    port    	= 8087,
+	//redis		= require('redis'),                 //No redis for now
+	//redisClient		= redis.createClient(),     //No redis for now
+	noderequest		= require('request'),
+    chatClients = new Object(),
+    chatRooms = ['RichMedia Queue'];
+    
+
+// listen to port
+server.listen(port);
+
+//configure express
+//define the paths to static files
+app.use('/css', express.static(__dirname+'/public/css'));
+app.use('/js', express.static(__dirname+'/public/js'));
+app.use('/assets', express.static(__dirname+'/public/assets'));
+app.use('/img', express.static(__dirname+'/public/img'));
+app.use('/styles', express.static(__dirname+'/public/styles'));
+app.use('/scripts', express.static(__dirname+'/public/scripts'));
+app.use('/images', express.static(__dirname+'/public/images'));
+
+//okay we have our folders, lets set up our request and serve up our main application file
+app.get('/', function(req, res) {
+   res.sendfile(__dirname+'/public/index.html');
+});
+
+
+//log level of socket.io, see only handshakes and disconnections
+io.set('log level', 2);
+
+//fallback for clients without websockets
+io.set('transports', ['websocket', 'xhr-polling']);
+
+//socket.io events, this be the good stuff
+io.sockets.on('connection', function(socket) {
+    //lets connect these peeps
+    socket.on('connect', function(data) {
+       connect(socket,data); 
+    });
+    //client sends a message
+    socket.on('chatmessage', function(data) {
+       chatmessage(socket, data); 
+    });
+    //client goes idle
+    socket.on('idleclient', function(data) {
+       idleclient(socket, data); 
+    });
+    //client comes back
+    socket.on('activeclient', function(data) {
+       activeclient(socket,data); 
+    });
+    //client subscribes to a room
+    socket.on('subscribe', function(data) {
+       subscribe(socket,data); 
+    });
+    //client leave a room
+    socket.on('unsubscribe', function(data) {
+       unsubscribe(socket,data); 
+    });
+    //a new ad comes in
+    socket.on('newad', function(data){
+       newad(socket,data); 
+    });
+    //an ad needs to be removed
+    socket.on('removead', function(data) {
+       removead(socket,data); 
+    });
+    //assign someone responsibility
+    socket.on('setresponsibility', function(data) {
+       setresponsbility(socket,data); 
+    });
+    //take responsibility
+    socket.on('takeresponsibility', function(data) {
+       takeresponsibility(socket,data); 
+    });
+    
+});
+
+//new clients y'all
+function connect(socket, data) {
+    data.clientId = generateId();
+    chatClients[socket.id] = data;
+    socket.emit('ready', {clientId: data.clientId});
+    if (data.site) {
+        subscribe(socket, {room: data.site});
+    } else {
+        subscribe(socket, {room: 'RichMedia Queue'})
+    }
+    roomsList = getRooms();
+    if (data.aos === true) {
+        // do nothing
+    } else {
+        socket.emit('roomslist', {rooms: roomsList});
+    }
+    
+}
+
+//client disconnects
+function disconnect(socket) {
+    var rooms = io.sockets.manager.roomClients[socket.id];
+    for(var room in rooms) {
+        if (room && rooms[room]) {
+            unsubscribe(socket, {room: room.replace('/','')});
+        }
+    }
+    delete chatClients[socket.id];
+}
+
+//loading from redis - not called anywhere left out for now
+//saving to redis - not called anywhere left out for now
+
+
+function chatmessage(socket, data) {
+    socket.broadcast.to(data.room).emit('chatmessage', {client: chatClients[socket.id], message: data.message, room: data.room});
+}
+
+
+function newad(socket, data) {
+    socket.broadcast.emit('newad',
+        {room: data.room, client: data.client, ad: data.ad, siteid:data.siteid, adinfo: data.adinfo});
+}
+
+function removead(socket, data) {
+    socket.broadcast.emit('removead',
+        {room: data.room, client: data.client, ad: data.ad, siteid: data.siteid});   
+}
+
+function setresponsbility(socket, data) {
+    socket.broadcast.emit('setresponsibility',
+        {room: data.room, client: data.client, ad: data.ad, siteid: data.siteid, responsibility: data.responsibility});
+}
+
+function takeresponsibility(socket, data) {
+    socket.broadcast.emit('takeresponsibility',
+        {room: data.room, client: data.client, ad: data.ad, siteid: data.siteid});
+}
+
+function idleclient(socket, data) {
+    socket.broadcast.emit('idleclient', {room:data.room, client: data.client});
+}
+
+function activeclient(socket, data) {
+    socket.broadcast.emit('activeclient', {room:data.room, client: data.client});
+}
+
+//dont really need the typing functions methinks
+
+function clearRoom(socket, data) {
+    socket.broadcast.to(data.room).emit('clearRoom', {room:data.room, name: data.name});
+}
+
+//someone joins the queue / party
+function subscribe(socket, data) {
+    var rooms = getRooms();
+    if (rooms.indexOf('/'+ data.room) < 0) {
+        socket.broadcast.emit('addroom', {room: data.room})
+    }
+    socket.join(data.room);
+    updatePresence(data.room,socket,'online');
+    socket.emit('roomclients', {room: data.room, clients: getClientsInRoom(socket.id, data.room)});
+}
+
+//someone leaves a room or goes offline
+function unsubscribe(socket, data) {
+    updatePresence(data.room, socket, 'offline');
+    socket.leave(data.room);
+}
+
+//get the available rooms
+function getRooms() {
+    return Object.keys(io.sockets.manager.rooms);
+}
+
+//get the peeps in the room / queue
+function getClientsInRoom(socketId, room) {
+    var socketIds = io.sockets.manager.rooms['/'+room],
+    clients = [],
+    i = 0,
+    socketsCount = 0;
+    if (socketIds && socketIds.length > 0) {
+        socketsCount = socketIds.length;
+        for (i; i < socketsCount; i++) {
+            if (socketIds[i] != socketId) {
+                clients.push(chatClients[socketIds[i]])
+            }
+        }
+    }
+    return clients;
+}
+
+//check the number of peeps in room / queue
+function countClientInRoom(room) {
+    if (io.sockets.manager.rooms['/'+room]) {
+        return io.sockets.manager.rooms['/'+ room].length;
+    }
+    return 0;
+}
+
+//someone left the room / queue
+function updatePresence(room, socket, state) {
+    room = room.replace('/','');
+    socket.broadcast.to(room).emit('presence', {client: chatClients[socket.id], state: state, room: room});
+}
+
+//create a unique id
+function generateId() {
+    var S4 = function() {
+        return (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
+    };
+    return (S4() + S4() + '-' + S4() + "-" + S4() + "-" + S4() + "-" + S4() + S4() + S4() + S4());
+}
+
+//create a simple time stamp
+function getTime() {
+    var date = new Date();
+    return (date.getHours() < 10 ? '0' + date.getHours().toString() : date.getHours()) + ":" +
+    (date.getMinutes() < 10 ? '0' + date.getMinutes.toString() : date.getMinutes());
+}
+
+console.log('Socket Helper server is running and listening to port %d...', port);
