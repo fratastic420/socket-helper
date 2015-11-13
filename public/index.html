@@ -11,22 +11,33 @@
             <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
         <![endif]-->
         
-        <!-- add icons here -->
+        <!-- add icons here DIZ SHIZNIT USES BOOTSTRAP 3 -->
+        <style>
+            .usersNav {
+                background-color: #fff;
+            }
+        </style>
         
     </head>
     <body>
-        <div class="container container-fluid">
+        <nav class="navbar navbar-default navbar-fixed-top usersNav">
+            <div class="container container-fluid">
             
-        </div>
+                <div class="clientList"></div>
+            </div>
+        </nav>
+        Hello <span class="user"></span>
         
         <script src="js/jquery-1.9.1.min.js"></script>
         <script src="js/jquery-ui.min.js"></script>
         <script src="js/iedetect.js"></script>
         <script src="js/jquery.noty.packaged.min.js"></script>
         <script src="js/tmpl.min.js"></script>
-        <script src="js/html5.min.js"></script>
+        <script src="js/html5.js"></script>
+        <script src="js/jquery.cookie.js"></script>
         <script src="js/ajaxutil.js"></script>
         <script src="js/bootstrap.min.js"></script>
-        <script src="chat.io.js"></script>
+        <script src="/socket.io/socket.io.js"></script>
+        <script src="js/chat.io.js"></script>
     </body>
 </html>

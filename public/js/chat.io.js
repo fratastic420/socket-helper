@@ -15,19 +15,18 @@
     }(window.location.search.substr(1).split('&'));    
 })(jQuery);
 
-var siteid = $.QueryString['siteid'] = {} ? false : $.QueryString['siteid'],
-    site = $.QueryString['site'] = {} ? 'RichMedia Queue' : $.QueryString['site'],
-    user = $.QueryString['u'] = {} ? false : $.QueryString['u'],
-    isAOS = false,
+//(function($){
+    var isAOS = false,
     mutedApp = false,
     curYear = (new Date).getFullYear(),
     me = {},
     searchTerms = {},
-    appOn = true;
-
-$(function() {
-    //some global parameters
-    var idletime = 0,
+    appOn = true,
+	user = $.QueryString['u'] || false,
+	site = $.QueryString['site'] || 'RichMedia Queue',
+	NICK_MAX_LENGTH = 25,
+	ROOM_MAX_LENGTH = 20,
+	idletime = 0,
     socket = null,
     clientId = null,
     nickname = null,
@@ -38,17 +37,36 @@ $(function() {
     meDisplayColor = '#54A854',
 	elseDisplayColor = '#1c5380',
     tmplt = {
-        room: [].join(""),
-        client: [].join(""),
-        message: [].join("")
+        room: [
+			'<li data-roomId="${room}"><i class="icon icon-black icon-bullet-off"></i>&nbsp;${room}&nbsp;<span class="label pull-right">0</span></li>'
+			].join(""),
+        client: [
+			'<li data-clientId="${clientId}"><i class="icon icon-blue icon-bullet-on clientBull"></i>&nbsp;${nickname}&nbsp;<i data-clientId="${clientId}" class="icon icon-grey icon-comment-text isTyping"></i></li>'	 
+			].join(""),
+        message: [
+			'<ul class="liststylenone"><li><div class="pull-left"><strong class="sender">${sender}&nbsp;</strong></div><div class="pull-left">${text}</div><div class="pull-right muted"><small>${time}</small></div></li></ul>'	  
+			].join("")
     }
-});
+
+
 
 function inFrame() {
     if (window.self === top) {
         return false;
     }
     return true;
+}
+
+//dis is hoooow we doooo it. This is how we do it.
+function connectUser(user) {
+	user = user.trim();
+	if (user && user.length <= NICK_MAX_LENGTH) {
+		nickname = user;
+		$.cookie('user', nickname, {expires:365});
+	}
+	$('.connectionStatus').html('Connection...');
+	socket = io.connect(serverAddress);
+	bindSocketEvents();
 }
 
 //possible user functionality
@@ -197,7 +215,7 @@ function addClient(clientId, announce, isMe) {
     if (isMe) {
         $html.addClass('me').find('i').addClass('icon-green');
     }
-    $html.appendTo('#usersList');
+    $html.appendTo('.clientList');
 }
 
 //if in iframe update the queue
@@ -242,3 +260,16 @@ function checkIsAOS(user) {
         appOn = false;
     });
 }
+
+
+$(function() {
+    //some global parameters
+	if (user) {
+		$('.user').html(user);
+		connectUser(user);
+	}
+	
+});
+
+//})(jQuery);
+

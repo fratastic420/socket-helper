@@ -9,12 +9,16 @@ var express 	= require('express'),
     server  	= require('http').createServer(app),
     io      	= require('socket.io').listen(server),
     port    	= 8087,
+    url         = require('url'),
 	//redis		= require('redis'),                 //No redis for now
 	//redisClient		= redis.createClient(),     //No redis for now
 	noderequest		= require('request'),
     chatClients = new Object(),
-    chatRooms = ['RichMedia Queue'];
-    
+    chatRooms = ['RichMedia Queue'],
+    cookieParser = require('cookie-parser');
+
+
+//app.use(cookieParser());
 
 // listen to port
 server.listen(port);
@@ -28,11 +32,47 @@ app.use('/img', express.static(__dirname+'/public/img'));
 app.use('/styles', express.static(__dirname+'/public/styles'));
 app.use('/scripts', express.static(__dirname+'/public/scripts'));
 app.use('/images', express.static(__dirname+'/public/images'));
+app.use('/fonts', express.static(__dirname+'/public/fonts'));
 
 //okay we have our folders, lets set up our request and serve up our main application file
 app.get('/', function(req, res) {
-   res.sendfile(__dirname+'/public/index.html');
+   //var user = null,
+   //options = {};
+   //if (req.query.u) {
+   //   user = req.query.u;
+   //   console.log('creating a cookie for '+ req.query.u)
+   //   res.cookie('user', user, {maxAge: 900000, httpOnly: true});
+   //}
+   //options = {
+   //   'user' : user
+   //};
+   //res.sendFile(__dirname+'/public/index.html', options);
+   res.sendFile(__dirname+'/public/index.html');
 });
+
+//app.get('/user/:user', function(req,res) {
+//   var user = req.params.user;
+//   console.log('cookie created for '+user);
+//   res.sendFile(__dirname+'/public/index.html');
+//   res.cookie('user', user, {maxAge: 900000, httpOnly: true});
+//});
+
+//todo => we may need another route that runs a blank iframe that connects to this app
+// and triggers the new ad emit broadcast so the queue will update
+//more or less this.... but instead sending up a new file
+//app.set('socketio',io);
+//app.get('/pushbullet/:siteid/:ad/:conf', function(req,res) {
+//   var socketio = req.app.get('socketio');
+//    var data = {
+//      client:  generateId(),
+//      ad:      req.params.ad,
+//      siteid:  req.params.siteid,
+//      conf:    req.params.conf
+//   };
+//   socketio.emit('newad', data);
+//   res.status(200).json({success:true, push:data});
+//}); 
+
 
 
 //log level of socket.io, see only handshakes and disconnections
@@ -69,7 +109,8 @@ io.sockets.on('connection', function(socket) {
     });
     //a new ad comes in
     socket.on('newad', function(data){
-       newad(socket,data); 
+      console.log('triggered');
+      newad(socket,data); 
     });
     //an ad needs to be removed
     socket.on('removead', function(data) {
@@ -126,8 +167,9 @@ function chatmessage(socket, data) {
 
 
 function newad(socket, data) {
+   console.log("New Ad\r\n");
     socket.broadcast.emit('newad',
-        {room: data.room, client: data.client, ad: data.ad, siteid:data.siteid, adinfo: data.adinfo});
+        {room: data.room, client: data.client, ad: data.ad, siteid:data.siteid, conf: data.conf});
 }
 
 function removead(socket, data) {
@@ -226,5 +268,11 @@ function getTime() {
     return (date.getHours() < 10 ? '0' + date.getHours().toString() : date.getHours()) + ":" +
     (date.getMinutes() < 10 ? '0' + date.getMinutes.toString() : date.getMinutes());
 }
+
+
+
+
+
+
 
 console.log('Socket Helper server is running and listening to port %d...', port);
