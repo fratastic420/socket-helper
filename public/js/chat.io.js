@@ -29,6 +29,7 @@
 	idletime = 0,
     socket = null,
     clientId = null,
+	client = null,
     nickname = null,
     isMe = null,
     currentRoom = null,
@@ -41,7 +42,12 @@
 			'<li data-roomId="${room}"><i class="icon icon-black icon-bullet-off"></i>&nbsp;${room}&nbsp;<span class="label pull-right">0</span></li>'
 			].join(""),
         client: [
-			'<li data-clientId="${clientId}"><i class="icon icon-blue icon-bullet-on clientBull"></i>&nbsp;${nickname}&nbsp;<i data-clientId="${clientId}" class="icon icon-grey icon-comment-text isTyping"></i></li>'	 
+			'<div class="btn-group" role="group"><button class="btn btn-default">\
+				  <li data-clientId="${clientId}">\
+				  <i class="glyphicon glyphicon-user clientBull"></i>&nbsp;${nickname}&nbsp;\
+				  <i data-clientId="${clientId}" class="glyphicon glyphicon-option-horizontal icon-grey hide isTyping"></i>\
+				  </li>\
+			</button></div>'	 
 			].join(""),
         message: [
 			'<ul class="liststylenone"><li><div class="pull-left"><strong class="sender">${sender}&nbsp;</strong></div><div class="pull-left">${text}</div><div class="pull-right muted"><small>${time}</small></div></li></ul>'	  
@@ -69,6 +75,8 @@ function connectUser(user) {
 	bindSocketEvents();
 }
 
+
+
 //possible user functionality
 function bindDOMEvents(){
     //switching between rooms -> most likely not needed
@@ -84,8 +92,10 @@ function bindDOMEvents(){
 //this is the actual good stuff :D
 function bindSocketEvents() {
     //connected to server
+	
+	//TODO this is recursively calling itself and blowing up on deployment
     socket.on('connect', function() {
-        socket.emit('connect',{nickname: user, site: site, aos:isAOS});
+        //socket.emit('connect',{nickname: user, site: site, aos:isAOS});
     });
     //server created connection and id for me
     socket.on('ready', function(data) {
@@ -192,7 +202,7 @@ function addRoom(name,announce) {
     }
 }
 
-function buildChatroom(name,announce){
+function buildChatRoom(name,announce){
     var el = $('#roomsList li[data-roomId="'+name+'"]');
     if (el.length == 0) {
         $.tmpl(tmplt.room, {room:name}).appendTo('#roomsList');
@@ -210,7 +220,7 @@ function removeRoom(name, announce) {
     }
 }
 
-function addClient(clientId, announce, isMe) {
+function addClient(client, announce, isMe) {
     var $html = $.tmpl(tmplt.client, client);
     if (isMe) {
         $html.addClass('me').find('i').addClass('icon-green');
@@ -241,6 +251,20 @@ function takeResponsibility(data) {
     if (inFrame() === true) {
         window.parent.takeResponsibility(data);
     }
+}
+
+function getClientsInRoom() {
+	return 0;
+}
+
+function setCurrentRoom(room) {
+	$('#roomName').html(room);
+	var oldRoom = $('#roomsList li.selected').data('roomid');
+	if (oldRoom != undefined) getClientsInRoom(oldRoom);
+	getClientsInRoom(room);
+	currentRoom = room;
+	$('#roomsList li.selected').removeClass('selected').find('i').removeClass('icon-bullet-on').removeClass("icon-green");
+	$('#roomsList li[data-roomId="' + room + '"]').addClass('selected').find("i").addClass('icon-bullet-on').addClass("icon-green");
 }
 
 //have to check company server to see if this an actual employee trying to use the socket helper

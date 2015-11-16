@@ -79,7 +79,7 @@ app.get('/', function(req, res) {
 io.set('log level', 2);
 
 //fallback for clients without websockets
-io.set('transports', ['websocket', 'xhr-polling']);
+io.set('transports', ['websocket', 'xhr-polling','polling']);
 
 //socket.io events, this be the good stuff
 io.sockets.on('connection', function(socket) {
