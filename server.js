@@ -9,7 +9,7 @@ var express 	= require('express'),
     server  	= require('http').createServer(app),
     io      	= require('socket.io').listen(server),
     port    	= 8087,
-    url         = require('url'),
+    //url         = require('url'),
 	//redis		= require('redis'),                 //No redis for now
 	//redisClient		= redis.createClient(),     //No redis for now
 	noderequest		= require('request'),
@@ -127,7 +127,7 @@ io.sockets.on('connection', function(socket) {
     
 });
 
-//new clients y'all
+//new clients y'all ->This is doing something I dont want on deployed server
 function connect(socket, data) {
     data.clientId = generateId();
     chatClients[socket.id] = data;
