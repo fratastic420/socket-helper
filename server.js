@@ -8,17 +8,14 @@ var express 	= require('express'),
 	app			= express(),
     server  	= require('http').createServer(app),
     io      	= require('socket.io').listen(server),
-    port    	= 8087,
-    //url         = require('url'),
+    port    	= 8089,
+    url         = require('url'),
+    //rooms = [],
 	//redis		= require('redis'),                 //No redis for now
 	//redisClient		= redis.createClient(),     //No redis for now
 	noderequest		= require('request'),
     chatClients = new Object(),
-    chatRooms = ['RichMedia Queue'],
-    cookieParser = require('cookie-parser');
-
-
-//app.use(cookieParser());
+    chatRooms = ['RichMedia Queue', 'AOS Lobby'];
 
 // listen to port
 server.listen(port);
@@ -36,6 +33,7 @@ app.use('/fonts', express.static(__dirname+'/public/fonts'));
 
 //okay we have our folders, lets set up our request and serve up our main application file
 app.get('/', function(req, res) {
+   
    //var user = null,
    //options = {};
    //if (req.query.u) {
@@ -87,6 +85,19 @@ io.sockets.on('connection', function(socket) {
     socket.on('connect', function(data) {
        connect(socket,data); 
     });
+    
+    socket.on('init', function(data) {
+    	//data.event = 'init';
+        //console.log(socket);
+        console.log(data);
+        if (!chatClients[socket.conn.id]) {
+            chatClients[socket.conn.id] = data;
+        }
+    	subscribe(socket, {room: 'RichMedia Queue'});
+    	roomsList = getRooms();
+        socket.emit('ready', {clientId: data.clientId});
+    });
+    
     //client sends a message
     socket.on('chatmessage', function(data) {
        chatmessage(socket, data); 
@@ -127,34 +138,34 @@ io.sockets.on('connection', function(socket) {
     
 });
 
-//new clients y'all ->This is doing something I dont want on deployed server
+//new clients y'all -> this may need to be reconfigured in future for other sites to push new ads
 function connect(socket, data) {
     data.clientId = generateId();
-    chatClients[socket.id] = data;
+    chatClients[socket.conn.id] = data;
     socket.emit('ready', {clientId: data.clientId});
     if (data.site) {
         subscribe(socket, {room: data.site});
     } else {
-        subscribe(socket, {room: 'RichMedia Queue'})
+        subscribe(socket, {room: 'RichMedia Queue'});
     }
     roomsList = getRooms();
-    if (data.aos === true) {
+    //if (data.aos === true) {
         // do nothing
-    } else {
+    //} else {
         socket.emit('roomslist', {rooms: roomsList});
-    }
-    
+   // }
+   
 }
 
 //client disconnects
 function disconnect(socket) {
-    var rooms = io.sockets.manager.roomClients[socket.id];
+    var rooms = io.sockets.adapter.roomClients[socket.conn.id];
     for(var room in rooms) {
         if (room && rooms[room]) {
             unsubscribe(socket, {room: room.replace('/','')});
         }
     }
-    delete chatClients[socket.id];
+    delete chatClients[socket.conn.id];
 }
 
 //loading from redis - not called anywhere left out for now
@@ -162,7 +173,7 @@ function disconnect(socket) {
 
 
 function chatmessage(socket, data) {
-    socket.broadcast.to(data.room).emit('chatmessage', {client: chatClients[socket.id], message: data.message, room: data.room});
+    socket.broadcast.to(data.room).emit('chatmessage', {client: chatClients[socket.conn.id], message: data.message, room: data.room});
 }
 
 
@@ -204,69 +215,84 @@ function clearRoom(socket, data) {
 //someone joins the queue / party
 function subscribe(socket, data) {
     var rooms = getRooms();
-    if (rooms.indexOf('/'+ data.room) < 0) {
+    if (rooms.indexOf(data.room) < 0) {
         socket.broadcast.emit('addroom', {room: data.room})
     }
     socket.join(data.room);
     updatePresence(data.room,socket,'online');
-    socket.emit('roomclients', {room: data.room, clients: getClientsInRoom(socket.id, data.room)});
+    socket.emit('roomclients', {room: data.room, clients: getClientsInRoom(socket.conn.id, data.room)});
 }
 
 //someone leaves a room or goes offline
 function unsubscribe(socket, data) {
-    updatePresence(data.room, socket, 'offline');
-    socket.leave(data.room);
+   updatePresence(data.room, socket, 'offline');
+   socket.leave(data.room);
 }
 
 //get the available rooms
 function getRooms() {
-    return Object.keys(io.sockets.manager.rooms);
+   return Object.keys(io.sockets.adapter.rooms);
 }
 
+//THIS FUNCTION IS FUCKED -> may need to pass the socket obj?
 //get the peeps in the room / queue
 function getClientsInRoom(socketId, room) {
-    var socketIds = io.sockets.manager.rooms['/'+room],
-    clients = [],
-    i = 0,
-    socketsCount = 0;
-    if (socketIds && socketIds.length > 0) {
-        socketsCount = socketIds.length;
-        for (i; i < socketsCount; i++) {
-            if (socketIds[i] != socketId) {
-                clients.push(chatClients[socketIds[i]])
-            }
-        }
-    }
-    return clients;
+   var socketIds = io.sockets.adapter.rooms[room],
+   clients = [],
+   i = 0,
+   socketsCount = 0,
+   data = {
+      socketId: socketId,
+      room: room,
+   };
+   //console.log(chatClients);
+   if (socketIds && socketIds[socketId] == true) {
+      socketsArr = Object.keys(socketIds);
+      socketsArr.forEach(function(el, i, arr) {
+         if (el!=socketId) {
+            clients.push(chatClients[el]);
+         }
+      });
+   }
+   console.log(clients);
+   return clients;
 }
 
+//THIS FUNCTION IS FUCKED 
 //check the number of peeps in room / queue
 function countClientInRoom(room) {
-    if (io.sockets.manager.rooms['/'+room]) {
-        return io.sockets.manager.rooms['/'+ room].length;
-    }
-    return 0;
+   if (io.sockets.adapter.rooms[room]) {
+      return Object.keys(io.sockets.adapter.rooms[room]).length;
+      //return io.sockets.adapter.rooms[room].length;
+   }
+   return 0;
 }
 
-//someone left the room / queue
+//someone left/entered the room / queue
 function updatePresence(room, socket, state) {
-    room = room.replace('/','');
-    socket.broadcast.to(room).emit('presence', {client: chatClients[socket.id], state: state, room: room});
+   var data = {
+      event: 'updatePresence',
+      room: room,
+      socket: socket,
+      state: state
+   };
+   //console.log(data);
+   socket.broadcast.to(room).emit('presence', {client: chatClients[socket.conn.id], state: state, room: room});
 }
 
 //create a unique id
 function generateId() {
-    var S4 = function() {
-        return (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
-    };
-    return (S4() + S4() + '-' + S4() + "-" + S4() + "-" + S4() + "-" + S4() + S4() + S4() + S4());
+   var S4 = function() {
+      return (((1 + Math.random()) * 0x10000) | 0).toString(16).substring(1);
+   };
+   return (S4() + S4() + '-' + S4() + "-" + S4() + "-" + S4() + "-" + S4() + S4() + S4() + S4());
 }
 
 //create a simple time stamp
 function getTime() {
-    var date = new Date();
-    return (date.getHours() < 10 ? '0' + date.getHours().toString() : date.getHours()) + ":" +
-    (date.getMinutes() < 10 ? '0' + date.getMinutes.toString() : date.getMinutes());
+   var date = new Date();
+   return (date.getHours() < 10 ? '0' + date.getHours().toString() : date.getHours()) + ":" +
+      (date.getMinutes() < 10 ? '0' + date.getMinutes.toString() : date.getMinutes());
 }
 
 

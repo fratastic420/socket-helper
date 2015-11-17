@@ -33,8 +33,9 @@
     nickname = null,
     isMe = null,
     currentRoom = null,
-    serverAddress = 'http://localhost', //need to change on deployment
-    serverDisplayNone = 'Server',
+    //serverAddress = 'http://localhost', //need to change on deployment
+    serverAddress = deploymentURL,
+	serverDisplayNone = 'Server',
     meDisplayColor = '#54A854',
 	elseDisplayColor = '#1c5380',
     tmplt = {
@@ -42,7 +43,7 @@
 			'<li data-roomId="${room}"><i class="icon icon-black icon-bullet-off"></i>&nbsp;${room}&nbsp;<span class="label pull-right">0</span></li>'
 			].join(""),
         client: [
-			'<div class="btn-group" role="group"><button class="btn btn-default">\
+			'<div data-clientId="${clientId}" class="btn-group activeClient" role="group"><button class="btn btn-default">\
 				  <li data-clientId="${clientId}">\
 				  <i class="glyphicon glyphicon-user clientBull"></i>&nbsp;${nickname}&nbsp;\
 				  <i data-clientId="${clientId}" class="glyphicon glyphicon-option-horizontal icon-grey hide isTyping"></i>\
@@ -53,7 +54,9 @@
 			'<ul class="liststylenone"><li><div class="pull-left"><strong class="sender">${sender}&nbsp;</strong></div><div class="pull-left">${text}</div><div class="pull-right muted"><small>${time}</small></div></li></ul>'	  
 			].join("")
     }
-
+	//alert(site);
+	//alert(user);
+    
 
 
 function inFrame() {
@@ -92,17 +95,22 @@ function bindDOMEvents(){
 //this is the actual good stuff :D
 function bindSocketEvents() {
     //connected to server
-	
-	//TODO this is recursively calling itself and blowing up on deployment
-    socket.on('connect', function() {
-        //socket.emit('connect',{nickname: user, site: site, aos:isAOS});
+   // var socketconnected = false;
+   //this is recursively blowing up
+    socket.on('connect', function(e) { 	
+    	var data = {nickname: user, site:site, aos:isAOS};
+        var s = socket.emit('init',data); 	
     });
     //server created connection and id for me
     socket.on('ready', function(data) {
+    	data.event = 'ready';
+    	console.log(data);
        clientId = data.clientId; 
     });
     //getting response of available rooms
     socket.on('roomslist', function(data) {
+    	data.event = 'roomslist';
+    	console.log(data);
        var i = 0, len = data.rooms.length;
        for (i;i<len; i++) {
             if (data.rooms[i] != '') {
@@ -112,18 +120,24 @@ function bindSocketEvents() {
     });
     //updating clients in room
     socket.on('updateClients', function(data) {
+    	data.event = 'updateClients';
+    	console.log(data);
         $('#roomsList li[data-roomid="'+data.room+'"]').find('span').html(data.count);
 		if (data.count > 0) $('#roomsList li[data-roomid="'+data.room+'"]').find('span').addClass('label-important');
 		else $('#roomsList li[data-roomid="'+data.room+'"]').find('span').removeClass('label-important');	
     });
     //chat message
     socket.on('chatmessage', function(data) {
+    	data.event='chatmessage';
+    	console.log(data);
        var nickname = data.client.nickname,
        message = data.message;
        insertMessage(nickname,message, true, false, false);
     });
     //getting init list of room clients
     socket.on('roomclients', function(data) {
+    	data.event="roomclients";
+    	console.log(data);
        addRoom(data.room,false);
        setCurrentRoom(data.room);
        clearRoom(false, data.room, user);
@@ -138,18 +152,26 @@ function bindSocketEvents() {
     });
     //loading a message
     socket.on('loadMessage', function(data) {
+    	data.event="loadMessage";
+    	console.log(data);
        loadMessage(data); 
     });
     //a room was added
     socket.on('addroom', function(data) {
+    	data.event="addroom";
+    	console.log(data);
        addRoom(data.room, true); 
     });
     //a room was destroyed
     socket.on('removeroom', function(data) {
+    	data.event="removeroom";
+    	console.log(data);
        removeRoom(data.room,true); 
     });
     //client comes on or offline
     socket.on('presence', function(data) {
+    	data.event="presence";
+    	console.log(data);
         if(data.state == 'online'){
             addClient(data.client, false); 
         } else if (data.state == 'offline') {
@@ -159,18 +181,26 @@ function bindSocketEvents() {
     });
     //an ad was removed
     socket.on('removead', function(data) {
+    	data.event="removead";
+    	console.log(data);
        clearAd(data); 
     });
     //an ad was added
     socket.on('newad', function(data) {
+    	data.event="newad";
+    	console.log(data);
        addNewAd(data); 
     });
     //responsibility was set
     socket.on('setresponsibility', function(data) {
+    	data.event="setresponsibility";
+    	console.log(data);
         setResponsibility(data);
     });
     //responsibility was taken
     socket.on('takeresponsibility', function(data) {
+    	data.event="takeresponsiblity";
+    	console.log(data);
         takeResponsibility(data);
     });
     //client goes idle
