@@ -48,6 +48,11 @@ app.get('/', function(req, res) {
    res.sendFile(__dirname+'/public/index.html');
 });
 
+//this will be for sites that access this app to push realtime events to the chatroom
+app.get('/:site', function(req,res) {
+   
+});
+
 //app.get('/user/:user', function(req,res) {
 //   var user = req.params.user;
 //   console.log('cookie created for '+user);
