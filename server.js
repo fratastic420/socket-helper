@@ -10,6 +10,7 @@ var express 	= require('express'),
     io      	= require('socket.io').listen(server),
     port    	= 8089,
     url         = require('url'),
+    fs          = require('fs'),
     //rooms = [],
 	//redis		= require('redis'),                 //No redis for now
 	//redisClient		= redis.createClient(),     //No redis for now
@@ -33,32 +34,29 @@ app.use('/fonts', express.static(__dirname+'/public/fonts'));
 
 //okay we have our folders, lets set up our request and serve up our main application file
 app.get('/', function(req, res) {
-   
-   //var user = null,
-   //options = {};
-   //if (req.query.u) {
-   //   user = req.query.u;
-   //   console.log('creating a cookie for '+ req.query.u)
-   //   res.cookie('user', user, {maxAge: 900000, httpOnly: true});
-   //}
-   //options = {
-   //   'user' : user
-   //};
-   //res.sendFile(__dirname+'/public/index.html', options);
-   res.sendFile(__dirname+'/public/index.html');
+   var filecontent = fs.readFileSync(__dirname+"/json/employees.json"),
+   authuser = JSON.parse(filecontent),
+   requser = req.query.u;
+   if (authuser["Employees"][requser] == undefined) {
+      res.status(404).send('Not found');
+   }else {
+      res.sendFile(__dirname+'/public/index.html');
+   }
 });
 
-//this will be for sites that access this app to push realtime events to the chatroom
-app.get('/:site', function(req,res) {
+app.get('/sites/:site/:user', function(req,res) {
+   var user = req.params.user,
+   site = req.params.site,
+   filecontent = fs.readFileSync(__dirname+'/json/customers.json'),
+   authuser = JSON.parse(filecontent);
+   if (authuser[site][user] == undefined) {
+      res.status(404).send('Not found');
+   }else {
+      res.sendFile(__dirname+'/public/siteconnect.html');
+   }
+
    
 });
-
-//app.get('/user/:user', function(req,res) {
-//   var user = req.params.user;
-//   console.log('cookie created for '+user);
-//   res.sendFile(__dirname+'/public/index.html');
-//   res.cookie('user', user, {maxAge: 900000, httpOnly: true});
-//});
 
 //todo => we may need another route that runs a blank iframe that connects to this app
 // and triggers the new ad emit broadcast so the queue will update
@@ -92,11 +90,11 @@ io.sockets.on('connection', function(socket) {
     });
     
     socket.on('init', function(data) {
-    	//data.event = 'init';
-        //console.log(socket);
-        console.log(data);
         if (!chatClients[socket.conn.id]) {
             chatClients[socket.conn.id] = data;
+            if (chatClients[socket.conn.id].clientId == undefined) {
+               chatClients[socket.conn.id].clientId = socket.conn.id;
+            }
         }
     	subscribe(socket, {room: 'RichMedia Queue'});
     	roomsList = getRooms();
@@ -141,6 +139,9 @@ io.sockets.on('connection', function(socket) {
        takeresponsibility(socket,data); 
     });
     
+   socket.on('leftpage', function(data) {
+      disconnect(socket);  
+   });
 });
 
 //new clients y'all -> this may need to be reconfigured in future for other sites to push new ads
@@ -255,11 +256,13 @@ function getClientsInRoom(socketId, room) {
       socketsArr = Object.keys(socketIds);
       socketsArr.forEach(function(el, i, arr) {
          if (el!=socketId) {
+            if (chatClients[el].clientId == undefined) {
+               chatClients[el].clientId = el;
+            }
             clients.push(chatClients[el]);
          }
       });
    }
-   console.log(clients);
    return clients;
 }
 
